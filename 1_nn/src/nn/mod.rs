@@ -12,7 +12,9 @@ mod output_head;
 mod patch_embd;
 mod qw2vl_mmproj;
 mod transformer_blk;
-
+mod mamba;
+mod mamba_blk;
+mod mamba_mixer;
 use crate::{
     ctx::{Context, Tensor},
     op::OpError,

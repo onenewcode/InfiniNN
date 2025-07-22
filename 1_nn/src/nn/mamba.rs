@@ -1,4 +1,4 @@
-use crate::nn::mamba_mixer::MambaMixer;
+use crate::{nn::{mamba_blk::MambaBlk, mamba_mixer::MambaMixer}, Normalization};
 
 use super::{
     Context, Distribution, Embedding, NNError, NuralNetwork, TPTensor, Tensor, TransformerBlk,
@@ -9,7 +9,7 @@ use super::{
 pub struct Mamba<T> {
     // gpt2
     pub embedding: Embedding<T>,
-    pub blks: Box<[MambaMixer<T>]>,
+    pub blks: Box<[ MambaBlk<T>]>,
     pub output_head: Option<OutputHead<T>>,
 }
 

@@ -6,79 +6,63 @@ use super::{
 };
 
 #[derive(Clone)]
-pub struct MambaBackbone<T> {
-    pub mixer_before_norm: Normalization<T>,
+pub struct MambaBlk<T> {
+    pub attn_norm: Normalization<T>,
     pub mixer: Attention<T>,
-    pub mixer_after_norm: Normalization<T>,
     pub all_reduce: bool,
 }
 
-impl<T> MambaBackbone<T> {
+impl<T> MambaBlk<T> {
     #[inline]
     pub const fn new(
-        mixer_before_norm: Normalization<T>,
+        attn_norm: Normalization<T>,
         mixer: Attention<T>,
-        mixer_after_norm: Normalization<T>,
     ) -> Self {
         Self {
-            mixer_before_norm,
+            attn_norm,
             mixer,
-            mixer_after_norm,
             all_reduce: false,
         }
     }
 
-    pub fn tensor_parallel(self, dist: Distribution) -> MambaBackbone<TPTensor<T>> {
+    pub fn tensor_parallel(self, dist: Distribution) -> MambaBlk<TPTensor<T>> {
         let Self {
-            mixer_before_norm,
+            attn_norm,
             mixer,
-            mixer_after_norm,
             ..
         } = self;
-        MambaBackbone{
-            mixer_before_norm: mixer_before_norm.tensor_parallel(),
+        MambaBlk{
+            attn_norm: attn_norm.tensor_parallel(),
             mixer: mixer.tensor_parallel(dist),
-            mixer_after_norm: mixer_after_norm.tensor_parallel(),
             all_reduce: !dist.is_mono(),
         }
     }
 }
 
-impl<T> NuralNetwork<T> for MambaBackbone<T> {
+impl<T> NuralNetwork<T> for MambaBlk<T> {
     fn launch(
         self,
         inputs: impl IntoIterator<Item = Tensor<T>>,
         mut ctx: Context<T>,
     ) -> Result<(Context<T>, Vec<Tensor<T>>), NNError> {
         let Self {
-            mixer_before_norm,
+            attn_norm,
             mixer,
-            mixer_after_norm,
             all_reduce,
         } = self;
-        // TODO: Implement the launch logic for MambaBackbone
-        todo!("Implement MambaBackbone launch logic");
+
         destruct!([x, pos] = inputs);
         let residual = x.clone();
-        let tensors = ctx.trap("attn-norm", mixer, [x])?;
+        let tensors = ctx.trap("attn-norm", attn_norm , [x])?;
         destruct!([x] = tensors);
-        // let tensors = ctx.trap("attn", attn, [x, pos, residual])?;
-        // let tensors = if all_reduce {
-        //     ctx.call("", "all-reduce", Some("sum".into()), tensors)?
-        // } else {
-        //     tensors
-        // };
+        let tensors = ctx.trap("mixer", mixer, [x, pos, residual])?;
 
-        // destruct!([x] = tensors);
-        // let residual = x.clone();
-        // let tensors = ctx.trap("ffn-norm", ffn_norm, [x])?;
-        // destruct!([x] = tensors);
-        // let tensors = ctx.trap("ffn", ffn, [x, residual])?;
-        // let tensors = if all_reduce {
-        //     ctx.call("", "all-reduce", Some("sum".into()), tensors)?
-        // } else {
-        //     tensors
-        // };
+
+        let tensors = if all_reduce {
+            ctx.call("", "all-reduce", Some("sum".into()), tensors)?
+        } else {
+            tensors
+        };
 
         Ok((ctx, tensors))
 
